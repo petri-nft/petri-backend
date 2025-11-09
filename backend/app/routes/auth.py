@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=LoginResponse)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
     # Check if user already exists
@@ -37,8 +37,20 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     
+    # Create access token
+    access_token_expires = timedelta(minutes=30)
+    access_token = create_access_token(
+        data={"sub": str(user.id)},  # Convert to string for JWT
+        expires_delta=access_token_expires,
+    )
+    
     logger.info(f"New user registered: {user.username}")
-    return user
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": user.id,
+        "username": user.username,
+    }
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -54,7 +66,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     
     access_token_expires = timedelta(minutes=30)
     access_token = create_access_token(
-        data={"sub": user.id},
+        data={"sub": str(user.id)},  # Convert to string for JWT
         expires_delta=access_token_expires,
     )
     

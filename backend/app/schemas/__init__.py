@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
 from typing import Optional, List
 
@@ -44,6 +44,15 @@ class TreeCreate(BaseModel):
     longitude: float
     location_name: Optional[str] = None
     description: Optional[str] = None
+    
+    @field_validator('species')
+    @classmethod
+    def validate_species(cls, v: str) -> str:
+        """Validate that species is one of the allowed values."""
+        valid_species = ['oak', 'pine', 'birch', 'maple', 'elm', 'spruce']
+        if v.lower() not in valid_species:
+            raise ValueError(f'Species must be one of: {", ".join(valid_species)}')
+        return v.lower()
 
 
 class TreeUpdate(BaseModel):
