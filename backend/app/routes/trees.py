@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.database.db import get_db
@@ -44,6 +44,79 @@ def plant_tree(
     return tree
 
 
+@router.get("", response_model=list[TreeListResponse])
+def list_trees(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """
+    List all trees for the current user.
+    
+    - **limit**: Maximum number of trees to return
+    - **offset**: Number of trees to skip
+    """
+    trees = TreeService.get_user_trees(db, current_user.id)
+    
+    # Apply pagination
+    paginated_trees = trees[offset:offset + limit]
+    
+    return paginated_trees
+
+
+@router.get("/voices", response_model=dict)
+def get_available_voices():
+    """Get list of available ElevenLabs voices for trees."""
+    voices = TTSService.get_available_voices()
+    return {
+        "voices": [
+            {
+                "name": name,
+                "voice_id": info["voice_id"],
+                "description": info["description"]
+            }
+            for name, info in voices.items()
+        ]
+    }
+
+
+@router.get("/marketplace/trees", response_model=dict)
+def get_public_trees(
+    db: Session = Depends(get_db),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Browse public trees in the marketplace.
+    
+    No authentication required - anyone can browse.
+    """
+    trees = PublicTreeService.list_public_trees(db, limit, offset)
+    
+    return {
+        "count": len(trees),
+        "limit": limit,
+        "offset": offset,
+        "trees": [
+            {
+                "id": tree.id,
+                "species": tree.species,
+                "location_name": tree.location_name,
+                "health_score": tree.health_score,
+                "current_value": tree.current_value,
+                "owner": tree.owner.username if tree.owner else "Unknown",
+                "personality": {
+                    "name": tree.personality.name if tree.personality else "Unknown",
+                    "tone": tree.personality.tone if tree.personality else "unknown",
+                } if tree.personality else None,
+                "created_at": tree.created_at
+            }
+            for tree in trees
+        ]
+    }
+
+
 @router.get("/{tree_id}", response_model=TreeResponse)
 def get_tree(
     tree_id: int,
@@ -67,26 +140,6 @@ def get_tree(
     
     return tree
 
-
-@router.get("", response_model=list[TreeListResponse])
-def list_trees(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-):
-    """
-    List all trees for the current user.
-    
-    - **limit**: Maximum number of trees to return
-    - **offset**: Number of trees to skip
-    """
-    trees = TreeService.get_user_trees(db, current_user.id)
-    
-    # Apply pagination
-    paginated_trees = trees[offset:offset + limit]
-    
-    return paginated_trees
 
 
 @router.post("/{tree_id}/updateHealth", response_model=TreeResponse)
@@ -341,6 +394,81 @@ def chat_with_tree(
         )
 
 
+@router.post("/{tree_id}/transcribe-voice", response_model=dict)
+async def transcribe_voice_message(
+    tree_id: int,
+    audio_file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Transcribe user's voice message to text.
+    
+    Accepts audio file (mp3, wav, m4a, etc.) and returns transcribed text.
+    Uses Groq Whisper API or alternative speech-to-text service.
+    
+    Request:
+    - audio_file: Binary audio file (multipart form data)
+    
+    Response:
+    {
+        "success": true,
+        "transcribed_text": "Hello tree, how are you?",
+        "original_filename": "voice_message.mp3",
+        "size": 12345
+    }
+    """
+    from app.services.voice_service import VoiceTranscriptionService, AudioStorageService
+    import tempfile
+    
+    tree = TreeService.get_tree(db, tree_id)
+    
+    if not tree:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tree not found",
+        )
+    
+    # Allow interaction if owner or tree is public
+    if tree.user_id != current_user.id and not tree.is_public:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to interact with this tree",
+        )
+    
+    try:
+        # Create temporary file for audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+            # Read uploaded file
+            contents = await audio_file.read()
+            tmp.write(contents)
+            tmp_path = tmp.name
+        
+        # Transcribe audio
+        try:
+            transcribed_text = VoiceTranscriptionService.transcribe_audio(tmp_path)
+        finally:
+            # Clean up temporary file
+            import os
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        
+        return {
+            "success": True,
+            "transcribed_text": transcribed_text,
+            "original_filename": audio_file.filename,
+            "size": len(contents)
+        }
+    
+    except Exception as e:
+        logger.error(f"Voice transcription error: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "transcribed_text": ""
+        }
+
+
 @router.get("/{tree_id}/chat-history", response_model=dict)
 def get_chat_history(
     tree_id: int,
@@ -422,53 +550,3 @@ def set_tree_public_status(
         "message": f"Tree is now {'public' if tree.is_public else 'private'}"
     }
 
-
-@router.get("/marketplace/trees", response_model=dict)
-def get_public_trees(
-    db: Session = Depends(get_db),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-):
-    """
-    Get all public trees available in marketplace.
-    No authentication required - anyone can browse.
-    """
-    trees = PublicTreeService.list_public_trees(db, limit, offset)
-    
-    return {
-        "count": len(trees),
-        "limit": limit,
-        "offset": offset,
-        "trees": [
-            {
-                "id": tree.id,
-                "species": tree.species,
-                "location_name": tree.location_name,
-                "health_score": tree.health_score,
-                "current_value": tree.current_value,
-                "owner": tree.owner.username if tree.owner else "Unknown",
-                "personality": {
-                    "name": tree.personality.name if tree.personality else "Unknown",
-                    "tone": tree.personality.tone if tree.personality else "unknown",
-                } if tree.personality else None,
-                "created_at": tree.created_at
-            }
-            for tree in trees
-        ]
-    }
-
-
-@router.get("/voices", response_model=dict)
-def get_available_voices():
-    """Get list of available ElevenLabs voices for trees."""
-    voices = TTSService.get_available_voices()
-    return {
-        "voices": [
-            {
-                "name": name,
-                "voice_id": info["voice_id"],
-                "description": info["description"]
-            }
-            for name, info in voices.items()
-        ]
-    }

@@ -1,0 +1,14 @@
+# Ignore markdown files
+*.md
+
+# Ignore text files
+*.txt
+
+# Ignore log files
+*.log
+
+# Ignore environment files
+*.env
+
+# Ignore virtual environment folder
+venv/

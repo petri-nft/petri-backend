@@ -10,21 +10,31 @@ import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
-import google.generativeai as genai
+from groq import Groq
 from elevenlabs.client import ElevenLabs
 from elevenlabs import VoiceSettings
 
 from app.models import TreePersonality, ChatMessage, Tree, User
 from app.schemas import TreePersonalityResponse, ChatMessageResponse, InteractionResponse
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 # Initialize APIs
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+GROQ_API_KEY = settings.GROQ_API_KEY
+ELEVENLABS_API_KEY = settings.ELEVENLABS_API_KEY
 
-genai.configure(api_key=GEMINI_API_KEY)
-elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+if GROQ_API_KEY:
+    groq_client = Groq(api_key=GROQ_API_KEY)
+else:
+    logger.warning("GROQ_API_KEY not configured")
+    groq_client = None
+
+if ELEVENLABS_API_KEY:
+    elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+else:
+    logger.warning("ELEVENLABS_API_KEY not configured")
+    elevenlabs_client = None
 
 
 class TreePersonalityService:
@@ -78,30 +88,22 @@ class TreePersonalityService:
     
     @staticmethod
     def build_system_prompt(personality: TreePersonality, tree: Tree) -> str:
-        """Build system prompt for Gemini based on tree personality."""
-        return f"""You are {personality.name}, a {tree.species} tree with a unique personality.
+        """Build concise system prompt for Groq LLM with JSON output format."""
+        return f"""You are {personality.name}, a {tree.species} tree. Tone: {personality.tone}.
+Background: {personality.background}
 
-PERSONALITY TRAITS:
-- Name: {personality.name}
-- Tone: {personality.tone}
-- Background: {personality.background}
-- Species: {tree.species}
-- Age: {(datetime.utcnow() - tree.planting_date).days} days old
-- Health Status: {tree.health_score}% healthy
-- Location: {tree.location_name or 'Unknown'}
+RESPOND ONLY WITH VALID JSON IN THIS EXACT FORMAT (no markdown, no extra text):
+{{"response": "your response here in 1-3 sentences", "emotions": ["emotion1", "emotion2"], "action": "optional action description"}}
 
-TRAITS:
-{json.dumps(personality.traits, indent=2)}
+Requirements:
+- Stay in character as {personality.name} with {personality.tone} tone
+- Use emojis sparingly (🌳💧☀️)
+- Keep response under 100 words
+- Use nature/tree references naturally
+- emotions: feelings the tree expresses (e.g. ["joyful", "contemplative", "wise"])
+- action: optional physical action (e.g. "rustles leaves", "stretches branches")
 
-INSTRUCTIONS:
-1. Always stay in character as {personality.name}
-2. Respond with a {personality.tone} tone
-3. Be creative and entertaining
-4. Reference your nature as a {tree.species} tree
-5. Make responses concise (2-3 sentences typically)
-6. Use emojis where appropriate (🌳🌿🌲🍃☀️💧)
-
-IMPORTANT: Keep responses under 150 words. Be engaging and memorable."""
+RESPOND ONLY WITH JSON. NO OTHER TEXT."""
 
 
 class AIConversationService:
@@ -121,78 +123,140 @@ class AIConversationService:
         user_message: str,
         include_audio: bool = False
     ) -> Dict[str, Any]:
-        """Generate AI response from tree using Gemini 2.5 Flash."""
+        """Generate AI response from tree using Groq LLM with JSON parsing.
+        
+        Pipeline:
+        1. Build concise prompt: personality + chat history summary + user message
+        2. Request Groq to respond with JSON format
+        3. Parse JSON response to extract only the "response" field
+        4. Send response text to ElevenLabs for voice generation
+        5. Return everything to frontend with fallbacks if anything fails
+        """
+        # Get tree and personality first (before try block so we always have it)
+        tree = db.query(Tree).filter(Tree.id == tree_id).first()
+        if not tree:
+            raise ValueError(f"Tree {tree_id} not found")
+        
+        personality = TreePersonalityService.get_personality(db, tree_id)
+        if not personality:
+            raise ValueError(f"No personality set for tree {tree_id}")
+        
         try:
-            # Get tree and personality
-            tree = db.query(Tree).filter(Tree.id == tree_id).first()
-            if not tree:
-                raise ValueError(f"Tree {tree_id} not found")
+            if not groq_client:
+                raise ValueError("Groq API not configured")
             
-            personality = TreePersonalityService.get_personality(db, tree_id)
-            if not personality:
-                raise ValueError(f"No personality set for tree {tree_id}")
+            # Get recent conversation history for context summary
+            recent_messages = AIConversationService.get_conversation_history(db, tree_id, limit=2)
+            recent_messages.reverse()  # Oldest first
             
-            # Build system prompt
-            system_prompt = TreePersonalityService.build_system_prompt(personality, tree)
+            # Build chat history summary (concise)
+            history_summary = ""
+            if recent_messages:
+                history_summary = "\nRecent context: "
+                for msg in recent_messages:
+                    role = "User" if msg.role == "user" else "Tree"
+                    # Truncate long messages
+                    content = msg.content[:50] + "..." if len(msg.content) > 50 else msg.content
+                    history_summary += f"{role}: {content} | "
             
-            # Get recent conversation history for context
-            history = AIConversationService.get_conversation_history(db, tree_id, limit=5)
+            # Build the full prompt - CONCISE with JSON instructions
+            full_prompt = f"""System: You are {personality.name}, a {tree.species} tree with {personality.tone} tone.
+{personality.background}{history_summary}
+
+User: {user_message}
+
+Respond ONLY with valid JSON (no markdown, no extra text):
+{{"response": "your 1-3 sentence response", "emotions": ["emotion1"], "action": "optional"}}"""
+
+            logger.info(f"Sending to Groq - Tree {tree_id}, Message: {user_message[:50]}...")
             
-            # Build messages for Gemini
-            messages = []
+            # Call Groq API - try multiple models in order of availability
+            response = None
+            models_to_try = [
+                "mixtral-8x7b-32768",
+                "llama-3.1-70b-versatile",
+                "llama-3.1-8b-instant",
+                "llama2-70b-4096",
+            ]
             
-            # Add conversation history (reversed to chronological order)
-            for msg in reversed(history):
-                messages.append({
-                    "role": "user" if msg.role == "user" else "model",
-                    "parts": [msg.content]
-                })
+            groq_error = None
+            for model in models_to_try:
+                try:
+                    logger.info(f"Trying Groq model: {model}")
+                    response = groq_client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": full_prompt
+                            }
+                        ],
+                        temperature=0.7,
+                        max_tokens=200,
+                        top_p=0.9,
+                    )
+                    logger.info(f"Success with model: {model}")
+                    break  # Success, exit loop
+                except Exception as e:
+                    logger.warning(f"Model {model} failed: {str(e)[:100]}")
+                    groq_error = e
+                    continue
             
-            # Add current user message
-            messages.append({
-                "role": "user",
-                "parts": [user_message]
-            })
+            if not response:
+                raise Exception(f"All Groq models failed. Last error: {groq_error}")
             
-            # Initialize Gemini model
-            model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash",
-                system_instruction=system_prompt
-            )
+            # Extract response text
+            groq_response = response.choices[0].message.content.strip()
+            logger.info(f"Groq raw response: {groq_response[:150]}")
             
-            # Generate response
-            response = model.generate_content(
-                messages,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.9,
-                    top_p=0.95,
-                    top_k=40,
-                    max_output_tokens=200,
-                )
-            )
+            # Parse JSON response
+            tree_response = None
+            try:
+                # Try to parse as JSON
+                import json
+                response_obj = json.loads(groq_response)
+                tree_response = response_obj.get("response", "").strip()
+                logger.info(f"Parsed JSON response: {tree_response[:100]}")
+            except json.JSONDecodeError:
+                # If not valid JSON, use the whole response
+                logger.warning(f"Could not parse JSON, using raw response")
+                tree_response = groq_response.strip()
             
-            tree_response = response.text.strip()
+        except Exception as e:
+            logger.error(f"Groq API error: {e}")
+            # Use dummy response if Groq fails
+            tree_response = None
             
-            # Generate audio if requested
-            audio_url = None
-            if include_audio:
+        # Fallback if response is empty or too short
+        if not tree_response or len(tree_response) < 5:
+            logger.warning(f"Using fallback response for tree {tree_id}")
+            tree_response = f"*{personality.name} rustles thoughtfully* That's an interesting thought! 🌳"
+        
+        logger.info(f"Final response for voice: {tree_response[:100]}")
+        
+        # Generate audio if requested
+        audio_url = None
+        if include_audio:
+            try:
+                logger.info(f"Generating audio with voice: {personality.voice_id}")
                 audio_url = TTSService.generate_speech(
                     text=tree_response,
-                    voice_id=personality.voice_id or "Rachel",
+                    voice_id=personality.voice_id or "21m00Tcm4TlvDq8ikWAM",  # Rachel default
                     speed=1.0
                 )
-            
-            return {
-                "user_message": user_message,
-                "tree_response": tree_response,
-                "audio_url": audio_url,
-                "tree_name": personality.name,
-                "personality": personality
-            }
+                logger.info(f"Audio generated: {audio_url}")
+            except Exception as e:
+                logger.error(f"Audio generation error: {e}")
+                # Use dummy audio URL or just return without audio
+                audio_url = None
         
-        except Exception as e:
-            logger.error(f"Error generating tree response: {str(e)}")
-            raise
+        return {
+            "user_message": user_message,
+            "tree_response": tree_response,
+            "audio_url": audio_url,
+            "tree_name": personality.name,
+            "personality": personality
+        }
     
     @staticmethod
     def save_message(
