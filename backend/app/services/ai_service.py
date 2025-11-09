@@ -9,6 +9,7 @@ import json
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from pathlib import Path
 from sqlalchemy.orm import Session
 from groq import Groq
 from elevenlabs.client import ElevenLabs
@@ -146,7 +147,8 @@ class AIConversationService:
                 raise ValueError("Groq API not configured")
             
             # Get recent conversation history for context summary
-            recent_messages = AIConversationService.get_conversation_history(db, tree_id, limit=2)
+            # Increased from 2 to 10 to give better context and reduce repetitive responses
+            recent_messages = AIConversationService.get_conversation_history(db, tree_id, limit=10)
             recent_messages.reverse()  # Oldest first
             
             # Build chat history summary (concise)
@@ -171,12 +173,11 @@ Respond ONLY with valid JSON (no markdown, no extra text):
             logger.info(f"Sending to Groq - Tree {tree_id}, Message: {user_message[:50]}...")
             
             # Call Groq API - try multiple models in order of availability
+            # Current available models: llama-3.1-8b-instant, gemma-7b-it
             response = None
             models_to_try = [
-                "mixtral-8x7b-32768",
-                "llama-3.1-70b-versatile",
-                "llama-3.1-8b-instant",
-                "llama2-70b-4096",
+                "llama-3.1-8b-instant",     # Primary - works well
+                "gemma-7b-it",              # Fallback
             ]
             
             groq_error = None
@@ -329,6 +330,7 @@ class TTSService:
     """Service for text-to-speech using ElevenLabs."""
     
     # Available ElevenLabs voices with different characteristics
+    # Note: Only using voice_ids that are currently available in ElevenLabs API
     AVAILABLE_VOICES = {
         "Rachel": {
             "voice_id": "21m00Tcm4TlvDq8ikWAM",
@@ -338,21 +340,9 @@ class TTSService:
             "voice_id": "EXAVITQu4vr4xnSDxMaL",
             "description": "Cute, youthful - great for playful/humorous"
         },
-        "Clyde": {
-            "voice_id": "2EiwWnXFnvU5JabPnXlx",
-            "description": "Deep, authoritative - good for wise/educational"
-        },
-        "Grace": {
-            "voice_id": "JZ8chara1Hjw9IUgr9eb",
-            "description": "Professional, clear - versatile"
-        },
-        "River": {
-            "voice_id": "SAz9YHcvj6GT2YYXdXnW",
-            "description": "Energetic, enthusiastic"
-        },
         "Ember": {
             "voice_id": "cgSgspJ2msm6clMCkdW9",
-            "description": "Warm and engaging"
+            "description": "Warm and engaging - good for wise/educational"
         }
     }
     
@@ -369,6 +359,12 @@ class TTSService:
     ) -> str:
         """Generate speech audio from text using ElevenLabs."""
         try:
+            # If ElevenLabs is not configured, return a placeholder that won't error
+            if not elevenlabs_client:
+                logger.warning("ElevenLabs not configured, returning mock audio URL")
+                timestamp = datetime.utcnow().timestamp()
+                return f"http://localhost:8000/static/audio/mock_{timestamp}.mp3"
+            
             # Use default voice if not specified
             if not voice_id or voice_id not in [v["voice_id"] for v in TTSService.AVAILABLE_VOICES.values()]:
                 voice_id = TTSService.AVAILABLE_VOICES["Rachel"]["voice_id"]
@@ -387,14 +383,32 @@ class TTSService:
                 optimize_streaming_latency=4,
             )
             
-            # For now, return a placeholder URL
-            # In production, you'd upload this to cloud storage (S3, etc.) and return the URL
-            # This is a mock implementation - you should implement proper storage
+            # Save audio to static folder
+            # Use absolute path from app root to avoid relative path issues
+            # Get the backend app directory
+            app_dir = Path(__file__).parent.parent.parent  # backend/app/services -> backend
+            static_audio_dir = app_dir / "static" / "audio"
+            static_audio_dir.mkdir(parents=True, exist_ok=True)
+            
             timestamp = datetime.utcnow().timestamp()
-            return f"https://audio.example.com/tree_audio_{timestamp}.mp3"
+            audio_filename = f"tree_audio_{timestamp}.mp3"
+            audio_path = static_audio_dir / audio_filename
+            
+            logger.info(f"Saving audio to: {audio_path}")
+            
+            # Write audio to file
+            with open(audio_path, 'wb') as f:
+                for chunk in audio:
+                    f.write(chunk)
+            
+            logger.info(f"Audio file saved successfully: {audio_path}")
+            
+            # Return URL to the audio file
+            return f"http://localhost:8000/static/audio/{audio_filename}"
         
         except Exception as e:
             logger.error(f"Error generating speech: {str(e)}")
+            # Return a safe error indicator
             raise
     
     @staticmethod
@@ -402,15 +416,15 @@ class TTSService:
         """Select appropriate voice based on personality tone."""
         tone_lower = tone.lower()
         
+        # Map tones to available voices (only Rachel, Bella, Ember)
         if tone_lower in ["humorous", "sarcastic", "playful"]:
             return TTSService.AVAILABLE_VOICES["Bella"]["voice_id"]
-        elif tone_lower in ["wise", "educational", "scholarly"]:
-            return TTSService.AVAILABLE_VOICES["Clyde"]["voice_id"]
-        elif tone_lower in ["poetic", "romantic", "artistic"]:
+        elif tone_lower in ["wise", "educational", "scholarly", "poetic", "romantic", "artistic"]:
             return TTSService.AVAILABLE_VOICES["Ember"]["voice_id"]
         elif tone_lower in ["energetic", "enthusiastic", "fun"]:
-            return TTSService.AVAILABLE_VOICES["River"]["voice_id"]
+            return TTSService.AVAILABLE_VOICES["Bella"]["voice_id"]
         else:
+            # Default to Rachel for all other tones
             return TTSService.AVAILABLE_VOICES["Rachel"]["voice_id"]
 
 

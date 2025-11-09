@@ -45,6 +45,7 @@ class Tree(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     species = Column(Enum(TreeSpecies), nullable=False)
+    nickname = Column(String(255), nullable=True)  # User-given name for the tree
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     location_name = Column(String(255))
@@ -52,6 +53,8 @@ class Tree(Base):
     health_score = Column(Float, default=100.0)
     current_value = Column(Float, default=0.0)
     description = Column(Text)
+    photo_url = Column(String(255), nullable=True)  # URL to the captured photo
+    nft_image_url = Column(String(255), nullable=True)  # URL to the generated NFT image
     is_public = Column(Boolean, default=False)
     # personality_id removed to avoid duplicate foreign key paths; TreePersonality.tree_id is the authoritative link
     created_at = Column(DateTime, default=datetime.utcnow)

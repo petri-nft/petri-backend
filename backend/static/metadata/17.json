@@ -1,0 +1,23 @@
+{
+  "name": "Petri TreeToken #17",
+  "description": "A living digital asset for a oak tree",
+  "image": "http://localhost:8000/static/images/17.png",
+  "attributes": [
+    {
+      "trait_type": "Health Score",
+      "value": "100.0"
+    },
+    {
+      "trait_type": "Species",
+      "value": "oak"
+    },
+    {
+      "trait_type": "Planted",
+      "value": "2025-11-09T16:35:18.145755"
+    },
+    {
+      "trait_type": "Generated",
+      "value": "2025-11-09T16:35:18.470683"
+    }
+  ]
+}

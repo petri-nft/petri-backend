@@ -42,8 +42,10 @@ class TreeCreate(BaseModel):
     species: str
     latitude: float
     longitude: float
+    nickname: str  # REQUIRED - User-given name for the tree (must be unique per user)
     location_name: Optional[str] = None
     description: Optional[str] = None
+    photo_url: Optional[str] = None  # URL to the captured photo
     
     @field_validator('species')
     @classmethod
@@ -67,6 +69,7 @@ class TreeResponse(BaseModel):
     id: int
     user_id: int
     species: str
+    nickname: Optional[str]
     latitude: float
     longitude: float
     location_name: Optional[str]
@@ -74,6 +77,8 @@ class TreeResponse(BaseModel):
     health_score: float
     current_value: float
     description: Optional[str]
+    photo_url: Optional[str]
+    nft_image_url: Optional[str]
     created_at: datetime
     updated_at: datetime
     
@@ -86,12 +91,15 @@ class TreeListResponse(BaseModel):
     id: int
     user_id: int
     species: str
+    nickname: Optional[str]
     latitude: float
     longitude: float
     location_name: Optional[str]
     planting_date: datetime
     health_score: float
     current_value: float
+    photo_url: Optional[str]
+    nft_image_url: Optional[str]
     
     class Config:
         from_attributes = True

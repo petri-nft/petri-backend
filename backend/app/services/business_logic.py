@@ -14,8 +14,18 @@ class TreeService:
     @staticmethod
     def create_tree(db: Session, user_id: int, species: str, latitude: float, 
                     longitude: float, location_name: Optional[str] = None,
-                    description: Optional[str] = None) -> Tree:
+                    description: Optional[str] = None, nickname: Optional[str] = None,
+                    photo_url: Optional[str] = None) -> Tree:
         """Create a new tree record."""
+        # Check if nickname is unique per user (if provided)
+        if nickname:
+            existing = db.query(Tree).filter(
+                Tree.user_id == user_id,
+                Tree.nickname == nickname
+            ).first()
+            if existing:
+                raise ValueError(f"You already have a tree named '{nickname}'. Please choose a different name.")
+        
         tree = Tree(
             user_id=user_id,
             species=species,
@@ -23,6 +33,8 @@ class TreeService:
             longitude=longitude,
             location_name=location_name,
             description=description,
+            nickname=nickname,
+            photo_url=photo_url,
             health_score=100.0,
             current_value=100.0,
         )

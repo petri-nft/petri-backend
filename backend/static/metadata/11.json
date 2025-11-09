@@ -1,0 +1,23 @@
+{
+  "name": "Petri TreeToken #11",
+  "description": "Ushima",
+  "image": "http://localhost:8000/static/images/11.png",
+  "attributes": [
+    {
+      "trait_type": "Health Score",
+      "value": "100.0"
+    },
+    {
+      "trait_type": "Species",
+      "value": "maple"
+    },
+    {
+      "trait_type": "Planted",
+      "value": "2025-11-09T16:18:34.810537"
+    },
+    {
+      "trait_type": "Generated",
+      "value": "2025-11-09T16:18:35.297117"
+    }
+  ]
+}

@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, File, Uplo
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.database.db import get_db
-from app.models import User, Tree
+from app.models import User, Tree, Token
 from app.schemas import TreeCreate, TreeResponse, TreeListResponse, HealthUpdateRequest, HealthHistoryResponse
 from app.services.business_logic import TreeService
 from app.services.external_services import CardGenerationService, HealthScoringService
 from app.services.ai_service import TreePersonalityService, AIConversationService, TTSService, PublicTreeService
+from app.services.nft_service import NFTGenerationService
 from app.auth import get_current_user
 import logging
 from math import ceil
@@ -30,18 +31,51 @@ def plant_tree(
     - **longitude**: GPS longitude
     - **location_name**: Optional location name
     - **description**: Optional description
+    - **nickname**: Optional user-given name for the tree (must be unique per user)
+    - **photo_url**: Optional URL to the captured photo
     """
-    tree = TreeService.create_tree(
-        db=db,
-        user_id=current_user.id,
-        species=tree_data.species,
-        latitude=tree_data.latitude,
-        longitude=tree_data.longitude,
-        location_name=tree_data.location_name,
-        description=tree_data.description,
-    )
-    
-    return tree
+    try:
+        tree = TreeService.create_tree(
+            db=db,
+            user_id=current_user.id,
+            species=tree_data.species,
+            latitude=tree_data.latitude,
+            longitude=tree_data.longitude,
+            location_name=tree_data.location_name,
+            description=tree_data.description,
+            nickname=tree_data.nickname,
+            photo_url=tree_data.photo_url,
+        )
+        
+        # Auto-create a default personality for the tree so chat is available immediately
+        try:
+            default_tone = "wise" if tree_data.species == "oak" else "enthusiastic"
+            default_name = f"{tree_data.species.capitalize()}"
+            if tree_data.nickname:
+                default_name = tree_data.nickname
+            
+            default_background = f"A beautiful {tree_data.species} tree. Loves to share stories and help others grow."
+            
+            personality = TreePersonalityService.create_personality(
+                db=db,
+                tree_id=tree.id,
+                name=default_name,
+                tone=default_tone,
+                background=default_background,
+                traits={"age": "young", "wisdom": "growing"},
+                voice_id=TTSService.select_voice_for_tone(default_tone)
+            )
+            logger.info(f"Auto-created default personality for tree {tree.id}")
+        except Exception as e:
+            logger.warning(f"Could not auto-create personality for tree {tree.id}: {e}")
+            # Continue anyway - personality can be set later
+        
+        return tree
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.get("", response_model=list[TreeListResponse])
@@ -287,7 +321,7 @@ def get_tree_personality(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get tree personality settings."""
+    """Get tree personality settings. Auto-creates a default if none exists."""
     tree = TreeService.get_tree(db, tree_id)
     
     if not tree:
@@ -305,11 +339,30 @@ def get_tree_personality(
     
     personality = TreePersonalityService.get_personality(db, tree_id)
     
+    # Auto-create a default personality if none exists
     if not personality:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No personality set for this tree",
-        )
+        try:
+            logger.info(f"Creating default personality for tree {tree_id} ({tree.species})")
+            default_tone = "wise" if tree.species == "oak" else "enthusiastic"
+            default_name = tree.nickname if tree.nickname else f"{tree.species.capitalize()}"
+            default_background = f"A beautiful {tree.species} tree. Loves to share stories and help others grow."
+            
+            personality = TreePersonalityService.create_personality(
+                db=db,
+                tree_id=tree_id,
+                name=default_name,
+                tone=default_tone,
+                background=default_background,
+                traits={"age": "young", "wisdom": "growing"},
+                voice_id=TTSService.select_voice_for_tone(default_tone)
+            )
+            logger.info(f"Default personality created for tree {tree_id}")
+        except Exception as e:
+            logger.error(f"Failed to create default personality: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not create default personality for tree",
+            )
     
     return {
         "id": personality.id,
@@ -550,3 +603,99 @@ def set_tree_public_status(
         "message": f"Tree is now {'public' if tree.is_public else 'private'}"
     }
 
+
+@router.post("/{tree_id}/generate-nft")
+def generate_nft(
+    tree_id: int,
+    user_image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate NFT image and metadata for a tree.
+    
+    - **tree_id**: ID of the tree
+    - **user_image**: Image file to be used for the NFT
+    
+    Returns:
+    - **imageUrl**: URL to the generated NFT image
+    - **metadataUrl**: URL to the generated metadata JSON
+    - **token_id**: ID of the created token in the database
+    """
+    try:
+        # Get the tree from database
+        tree = db.query(Tree).filter(
+            Tree.id == tree_id,
+            Tree.user_id == current_user.id
+        ).first()
+        
+        if not tree:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tree not found or you don't have permission to modify it"
+            )
+        
+        # Check if NFT already exists for this tree
+        existing_token = db.query(Token).filter(Token.tree_id == tree_id).first()
+        if existing_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="NFT already exists for this tree"
+            )
+        
+        # Generate NFT image
+        nft_service = NFTGenerationService()
+        image_path = nft_service.generate_nft_image(user_image.file, str(tree_id))
+        
+        # Generate metadata
+        # Hardcoded values for now - you can add these as optional parameters later
+        metadata_path = nft_service.generate_metadata(
+            tree_id=str(tree_id),
+            species=tree.species.value,
+            health_score=tree.health_score,
+            planting_date=tree.planting_date,
+            base_url="http://localhost:8000",
+            description=tree.description or f"A living digital asset for a {tree.species.value} tree"
+        )
+        
+        # Get base URL from request (you should pass this from frontend or config)
+        base_url = "http://localhost:8000"  # TODO: Make this configurable
+        image_url = nft_service.get_image_url(str(tree_id), base_url)
+        metadata_url = nft_service.get_metadata_url(str(tree_id), base_url)
+        
+        # Create Token record in database
+        token = Token(
+            token_id=f"TREE_{tree_id}_{datetime.utcnow().timestamp()}",
+            tree_id=tree_id,
+            owner_id=current_user.id,
+            image_uri=image_url,
+            metadata_uri=metadata_url,
+            base_value=100.0,
+            current_value=100.0
+        )
+        db.add(token)
+        
+        # Also save the NFT image URL to the tree
+        tree.nft_image_url = image_url
+        db.commit()
+        db.refresh(token)
+        db.refresh(tree)
+        
+        logger.info(f"Generated NFT for tree {tree_id}, token {token.id}")
+        
+        return {
+            "status": "success",
+            "imageUrl": image_url,
+            "metadataUrl": metadata_url,
+            "token_id": token.id,
+            "message": "NFT generated successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating NFT for tree {tree_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating NFT: {str(e)}"
+        )

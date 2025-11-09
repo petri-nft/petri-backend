@@ -1,0 +1,23 @@
+{
+  "name": "Petri TreeToken #22",
+  "description": "A beautiful White Oak",
+  "image": "http://localhost:8000/static/images/22.png",
+  "attributes": [
+    {
+      "trait_type": "Health Score",
+      "value": "100.0"
+    },
+    {
+      "trait_type": "Species",
+      "value": "oak"
+    },
+    {
+      "trait_type": "Planted",
+      "value": "2025-11-09T17:53:46.887090"
+    },
+    {
+      "trait_type": "Generated",
+      "value": "2025-11-09T17:53:47.443003"
+    }
+  ]
+}

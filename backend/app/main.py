@@ -1,6 +1,8 @@
 import logging
+import os
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from app.database.db import engine, Base
 from app.models import User, Tree, Token, Share, Trade, HealthHistory
@@ -43,6 +45,15 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=600,
 )
+
+# Set up static files directory
+STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
+os.makedirs(STATIC_DIR, exist_ok=True)
+os.makedirs(os.path.join(STATIC_DIR, 'images'), exist_ok=True)
+os.makedirs(os.path.join(STATIC_DIR, 'metadata'), exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 
 
 # Exception handlers

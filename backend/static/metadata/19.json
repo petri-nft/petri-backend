@@ -1,0 +1,23 @@
+{
+  "name": "Petri TreeToken #19",
+  "description": "A beautiful Black Walnut",
+  "image": "http://localhost:8000/static/images/19.png",
+  "attributes": [
+    {
+      "trait_type": "Health Score",
+      "value": "100.0"
+    },
+    {
+      "trait_type": "Species",
+      "value": "elm"
+    },
+    {
+      "trait_type": "Planted",
+      "value": "2025-11-09T16:44:29.675426"
+    },
+    {
+      "trait_type": "Generated",
+      "value": "2025-11-09T16:44:30.160680"
+    }
+  ]
+}
