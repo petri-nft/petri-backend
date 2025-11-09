@@ -28,6 +28,14 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class LoginResponse(BaseModel):
+    """Schema for login response."""
+    access_token: str
+    token_type: str
+    user_id: int
+    username: str
+
+
 # ==================== TREE SCHEMAS ====================
 class TreeCreate(BaseModel):
     """Schema for creating a new tree."""
@@ -67,6 +75,7 @@ class TreeResponse(BaseModel):
 class TreeListResponse(BaseModel):
     """Schema for listing trees."""
     id: int
+    user_id: int
     species: str
     latitude: float
     longitude: float
@@ -198,3 +207,66 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
     status_code: int
+
+
+# ==================== AI PERSONALITY SCHEMAS ====================
+class TreePersonalityCreate(BaseModel):
+    """Schema for creating tree personality."""
+    name: str
+    tone: str  # e.g., "humorous", "wise", "educational", "poetic", "sarcastic"
+    background: str
+    traits: Optional[dict] = None
+
+
+class TreePersonalityResponse(BaseModel):
+    """Schema for tree personality response."""
+    id: int
+    tree_id: int
+    name: str
+    tone: str
+    background: str
+    traits: Optional[dict]
+    voice_id: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# ==================== CHAT MESSAGE SCHEMAS ====================
+class ChatMessageCreate(BaseModel):
+    """Schema for creating chat message."""
+    content: str
+    include_audio: bool = False  # Generate audio response from tree
+
+
+class ChatMessageResponse(BaseModel):
+    """Schema for chat message response."""
+    id: int
+    tree_id: int
+    user_id: int
+    role: str
+    content: str
+    audio_url: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class ChatHistoryResponse(BaseModel):
+    """Schema for chat history."""
+    tree_id: int
+    tree_name: str
+    personality: TreePersonalityResponse
+    messages: List[ChatMessageResponse]
+
+
+class InteractionResponse(BaseModel):
+    """Schema for tree interaction response."""
+    user_message: str
+    tree_response: str
+    audio_url: Optional[str]
+    tree_name: str
+    tree_personality: TreePersonalityResponse

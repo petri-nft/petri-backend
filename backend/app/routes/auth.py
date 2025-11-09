@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from app.database.db import get_db
 from app.models import User
-from app.schemas import UserCreate, UserLogin, UserResponse
+from app.schemas import UserCreate, UserLogin, UserResponse, LoginResponse
 from app.auth import hash_password, verify_password, create_access_token
 import logging
 
@@ -41,7 +41,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
-@router.post("/login")
+@router.post("/login", response_model=LoginResponse)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
     """Login user and return access token."""
     user = db.query(User).filter(User.username == credentials.username).first()

@@ -52,6 +52,8 @@ class Tree(Base):
     health_score = Column(Float, default=100.0)
     current_value = Column(Float, default=0.0)
     description = Column(Text)
+    is_public = Column(Boolean, default=False)
+    # personality_id removed to avoid duplicate foreign key paths; TreePersonality.tree_id is the authoritative link
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -59,6 +61,14 @@ class Tree(Base):
     owner = relationship("User", back_populates="trees")
     token = relationship("Token", back_populates="tree", uselist=False)
     health_history = relationship("HealthHistory", back_populates="tree", cascade="all, delete-orphan")
+    # Relationship to TreePersonality using the TreePersonality.tree_id foreign key
+    personality = relationship(
+        "TreePersonality",
+        back_populates="tree",
+        uselist=False,
+        primaryjoin="Tree.id==TreePersonality.tree_id",
+    )
+    chat_messages = relationship("ChatMessage", back_populates="tree", cascade="all, delete-orphan")
 
 
 class Token(Base):
@@ -130,3 +140,46 @@ class HealthHistory(Base):
     
     # Relationships
     tree = relationship("Tree", back_populates="health_history")
+
+
+class TreePersonality(Base):
+    """AI Personality traits for a tree."""
+    __tablename__ = "tree_personalities"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    # One-to-one link to Tree via tree_id
+    tree_id = Column(Integer, ForeignKey("trees.id"), nullable=False, unique=True)
+    name = Column(String(255), nullable=False)  # e.g., "Wise Oak", "Cheeky Pine"
+    tone = Column(String(50), nullable=False)  # e.g., "humorous", "wise", "educational", "poetic"
+    background = Column(Text)  # Tree's backstory/personality description
+    traits = Column(JSON, default={})  # Dict of personality traits
+    voice_id = Column(String(255))  # ElevenLabs voice ID
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    # Relationship back to Tree using the tree_id FK
+    tree = relationship(
+        "Tree",
+        back_populates="personality",
+        uselist=False,
+        primaryjoin="Tree.id==TreePersonality.tree_id",
+        foreign_keys=[tree_id],
+    )
+
+
+class ChatMessage(Base):
+    """Chat message between user and tree AI."""
+    __tablename__ = "chat_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tree_id = Column(Integer, ForeignKey("trees.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String(20), nullable=False)  # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    audio_url = Column(String(255))  # ElevenLabs generated audio URL (for tree responses)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    tree = relationship("Tree", back_populates="chat_messages")
+    user = relationship("User")

@@ -2,11 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
-try:
-    from fastapi.security import HTTPBearer
-except ImportError:
-    HTTPBearer = None
+from fastapi import Depends, HTTPException, status, Header
 from app.config import settings
 from app.models import User
 from sqlalchemy.orm import Session
@@ -14,15 +10,6 @@ from app.database.db import get_db
 
 # Setup password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Security scheme
-try:
-    if HTTPBearer:
-        security = HTTPBearer()
-    else:
-        security = None
-except:
-    security = None
 
 
 def hash_password(password: str) -> str:
@@ -62,24 +49,25 @@ def verify_token(token: str) -> dict:
 
 
 async def get_current_user(
-    credentials = Depends(security) if security else None,
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ) -> User:
     """Get current authenticated user from token."""
-    if not credentials and not security:
-        # Fallback for compatibility
+    if not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Security scheme not available",
+            detail="Missing authorization header",
         )
     
-    if credentials is None:
+    # Extract token from "Bearer <token>" header
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="Invalid authorization header format",
         )
     
-    token = credentials.credentials
+    token = parts[1]
     payload = verify_token(token)
     
     user_id: int = payload.get("sub")
