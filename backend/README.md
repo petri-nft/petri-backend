@@ -1,69 +1,118 @@
-# Plant a Tree - Backend API Documentation
+# Petri Backend
 
-## Overview
+FastAPI-based REST API for tree NFTs, health tracking, trading, and AI chat integration.
 
-This is the backend service for the "Plant a Tree" NFT project. It provides a FastAPI-based REST API for managing trees, NFT tokens, health scoring, and trading.
+## Quick Start
 
-## Table of Contents
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python app/database/init.py
+python -m uvicorn app.main:app --reload
+```
 
-1. [Technology Stack](#technology-stack)
-2. [Project Structure](#project-structure)
-3. [Setup & Installation](#setup--installation)
-4. [Database Schema](#database-schema)
-5. [API Endpoints](#api-endpoints)
-6. [Authentication](#authentication)
-7. [Integration Guide](#integration-guide)
-8. [Running the Server](#running-the-server)
-9. [Sample Data](#sample-data)
+Server runs on `http://localhost:8000`
 
----
+## Tech Stack
 
-## Technology Stack
-
-- **Framework**: FastAPI 0.104.1
-- **Server**: Uvicorn 0.24.0
-- **Database**: PostgreSQL with SQLAlchemy ORM
-- **Authentication**: JWT (python-jose) with bcrypt password hashing
-- **ORM**: SQLAlchemy 2.0.23
-- **Database Driver**: psycopg2
-- **Validation**: Pydantic 2.5.0
-
----
+- FastAPI with Uvicorn
+- PostgreSQL + SQLAlchemy ORM
+- JWT authentication (python-jose)
+- Pydantic validation
+- Groq LLM for AI chat
+- ElevenLabs for voice generation
 
 ## Project Structure
 
 ```
-backend/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                 # FastAPI app initialization
-│   ├── config.py               # Configuration from environment
-│   ├── auth.py                 # Authentication utilities
-│   ├── models/
-│   │   └── __init__.py         # SQLAlchemy ORM models
-│   ├── schemas/
-│   │   └── __init__.py         # Pydantic request/response schemas
-│   ├── database/
-│   │   ├── __init__.py
-│   │   ├── db.py               # Database connection & session
-│   │   └── init.py             # Database initialization & seeding
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── business_logic.py   # Core business logic services
-│   │   └── external_services.py # External service integrations
-│   └── routes/
-│       ├── __init__.py
-│       ├── auth.py             # Authentication endpoints
-│       ├── trees.py            # Tree management endpoints
-│       ├── tokens.py           # NFT token endpoints
-│       ├── trades.py           # Trading endpoints
-│       └── portfolio.py        # Portfolio endpoints
-├── requirements.txt            # Python dependencies
-├── .env.example               # Environment variables template
-└── README.md                  # This file
+app/
+├── main.py              # App initialization
+├── config.py            # Environment config
+├── auth.py              # JWT utilities
+├── models/              # SQLAlchemy ORM models
+├── schemas/             # Pydantic schemas
+├── database/            # DB connection & init
+├── services/            # Business logic & AI
+│   ├── ai_service.py        # Groq LLM + ElevenLabs
+│   ├── business_logic.py
+│   └── voice_service.py     # Voice transcription
+└── routes/              # API endpoints
+    ├── auth.py
+    ├── trees.py
+    ├── tokens.py
+    ├── trades.py
+    └── portfolio.py
 ```
 
----
+## Core Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Create account
+- `POST /api/auth/login` - Login (returns JWT)
+
+### Trees
+- `POST /api/trees` - Plant tree
+- `GET /api/trees` - List user's trees
+- `GET /api/trees/{id}` - Get tree details
+- `GET /api/trees/{id}/health-history` - Health history
+
+### AI Chat (NEW)
+- `POST /api/trees/{id}/chat` - Send message (text or voice input)
+- `GET /api/trees/{id}/personality` - Get personality
+- `POST /api/trees/{id}/personality` - Create personality
+- `POST /api/trees/{id}/transcribe-voice` - Transcribe audio
+- `GET /api/trees/voices` - List available voices (6 voices)
+
+### Tokens (NFTs)
+- `POST /api/trees/{id}/mint` - Mint NFT
+- `GET /api/tokens` - List tokens
+- `GET /api/tokens/{id}` - Get token
+
+## Environment Variables
+
+```
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/petri_db
+
+# Security
+SECRET_KEY=your-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# AI Services
+GROQ_API_KEY=your-groq-key
+ELEVENLABS_API_KEY=your-elevenlabs-key
+
+# Debug
+DEBUG=True
+```
+
+## Documentation
+
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Troubleshooting
+
+**Database connection error**: Check DATABASE_URL in .env and ensure PostgreSQL is running
+
+**Port 8000 in use**: `uvicorn app.main:app --port 8001`
+
+**Import errors**: `pip install -r requirements.txt --force-reinstall`
+
+**Token invalid**: Login again to get fresh token
+
+## Sample Test Credentials
+
+```
+Username: alice
+Password: password123
+```
+
+**Last Updated**: November 9, 2025
+
 
 ## Setup & Installation
 
