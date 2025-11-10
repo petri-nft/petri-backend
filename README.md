@@ -102,17 +102,6 @@ CARD_GENERATION_SERVICE_URL=http://localhost:8001
 HEALTH_SCORING_SERVICE_URL=http://localhost:8002
 ```
 
-### Getting API Keys
-
-**Groq API** (Free tier: 14,400 requests/day)
-1. Visit https://console.groq.com
-2. Sign up and create API key
-3. Copy to `GROQ_API_KEY`
-
-**ElevenLabs** (Free tier: 10,000 characters/month)
-1. Visit https://elevenlabs.io
-2. Sign up → Settings → API Keys
-3. Copy to `ELEVENLABS_API_KEY`
 
 ---
 
