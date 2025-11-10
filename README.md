@@ -1,753 +1,392 @@
-# 🌳 Petri Backend - Complete Setup Guide
+# 🌲 Petri Backend API
 
-A FastAPI-based REST API for tree NFTs with AI chat, health tracking, trading, and voice generation capabilities.
+> REST API powering tree NFTs with AI chat, health tracking, and voice generation
 
-## 📋 Table of Contents
+A FastAPI-based backend that verifies tree health through satellite data (NDVI), powers AI personality chat via Groq LLM, and generates voice responses using ElevenLabs TTS.
 
-- [What's in the Backend?](#whats-in-the-backend)
-- [Tech Stack](#tech-stack)
-- [Prerequisites](#prerequisites)
-- [Installation & Setup](#installation--setup)
-- [Configuration](#configuration)
-- [Running the Backend](#running-the-backend)
-- [Database Setup](#database-setup)
-- [Project Structure](#project-structure)
-- [Key Features](#key-features)
-- [API Documentation](#api-documentation)
-- [Troubleshooting](#troubleshooting)
+![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?logo=fastapi)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-336791?logo=postgresql)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 
 ---
 
-## 🏗 What's in the Backend?
+## 🚀 Quick Start
 
-The Petri backend provides a complete REST API for:
+### Prerequisites
 
-### 1. *Tree Management* 🌲
-- Create, read, update, delete trees
-- Track tree health and care history
-- Location-based tree discovery
-- Tree photos and metadata
+- Python 3.9+
+- PostgreSQL 12+
+- API Keys:
+  - [Groq API](https://console.groq.com) (LLM - free tier available)
+  - [ElevenLabs API](https://elevenlabs.io) (TTS - free tier available)
 
-### 2. *AI Personality & Chat* 🤖💬
-- AI-powered tree personalities using Groq LLM
-- Tree chat with personality-aware responses
-- Conversation history tracking
-- Multiple tone options (wise, humorous, poetic, etc.)
+### Installation
 
-### 3. *Voice Generation* 🎙
-- Text-to-speech using ElevenLabs API
-- 3 voice options (Rachel, Bella, Ember)
-- Voice tone-based voice selection
-- MP3 audio file generation and storage
+```bash
+# Clone and navigate
+git clone https://github.com/Xeeshan85/petri-backend.git
+cd petri-backend
 
-### 4. *User Authentication* 🔐
-- JWT-based authentication
-- User registration and login
-- Secure password hashing (bcrypt)
-- Token-based API access
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-### 5. *NFT Features* 🎨
-- NFT metadata generation
-- Card image generation
-- NFT minting capabilities
-- Trading and marketplace
+# Install dependencies
+pip install -r requirements.txt
 
-### 6. *Health Tracking* 💚
-- Tree health scoring system
-- NDVI (vegetation health) tracking
-- Care history logging
-- Health recommendations
+# Configure environment
+cp .env.example .env
+# Edit .env with your credentials (see Configuration section)
 
-### 7. *Portfolio Management* 💼
-- User portfolio tracking
-- Tree valuation
-- Trading history
-- Investment tracking
+# Initialize database
+python app/database/init.py
+
+# Start server
+uvicorn app.main:app --reload
+```
+
+Server runs at: **http://localhost:8000**
 
 ---
 
-## 🛠 Tech Stack
+## 📋 Features
+
+### 🌳 Core Functionality
+
+- **Tree Management** - CRUD operations for trees with GPS tracking
+- **Health Monitoring** - NDVI-based health scoring and recommendations
+- **AI Personality** - Groq-powered tree companions with customizable tones
+- **Voice Generation** - ElevenLabs TTS for audio responses
+- **NFT Integration** - Dynamic metadata generation based on tree health
+- **Marketplace** - Trading system for TreeTokens
+- **Authentication** - JWT-based secure user auth
+
+---
+
+## 🛠️ Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
-| *Framework* | FastAPI (async Python web framework) |
-| *Server* | Uvicorn (ASGI server) |
-| *Database* | PostgreSQL + SQLAlchemy ORM |
-| *Authentication* | JWT (python-jose) |
-| *Validation* | Pydantic |
-| *LLM* | Groq API (llama-3.1-8b-instant) |
-| *TTS* | ElevenLabs API |
-| *Image Processing* | Pillow |
-| *Environment* | python-dotenv |
-| *Migration* | Alembic |
+| **Framework** | FastAPI (async Python) |
+| **Server** | Uvicorn ASGI |
+| **Database** | PostgreSQL + SQLAlchemy ORM |
+| **Authentication** | JWT (python-jose) |
+| **Validation** | Pydantic v2 |
+| **LLM** | Groq API (llama-3.1-8b-instant) |
+| **Text-to-Speech** | ElevenLabs API |
+| **Image Processing** | Pillow |
+| **Migrations** | Alembic |
 
 ---
 
-## 📦 Prerequisites
+## ⚙️ Configuration
 
-Before you start, ensure you have:
+Create a `.env` file with the following variables:
 
-### System Requirements
-- *Python*: 3.9 or higher
-- *PostgreSQL*: 12 or higher
-- *pip*: Python package manager
-- *Git*: Version control (optional)
-
-### API Keys (Required)
-1. *Groq API Key* - For LLM
-   - Get from: https://console.groq.com
-   - Free tier available with generous limits
-
-2. *ElevenLabs API Key* - For text-to-speech
-   - Get from: https://elevenlabs.io
-   - Free tier includes monthly character limit
-
-3. *PostgreSQL Database*
-   - Local or remote PostgreSQL instance
-   - Database name, user, and password
-
----
-
-## 🚀 Installation & Setup
-
-### Step 1: Clone the Repository
-
-bash
-cd /home/admin/Desktop/Petri/backend
-# or
-git clone <repository-url>
-cd backend
-
-
-### Step 2: Create Virtual Environment
-
-bash
-# Create virtual environment
-python3 -m venv venv
-
-# Activate virtual environment
-# On macOS/Linux:
-source venv/bin/activate
-
-# On Windows:
-venv\Scripts\activate
-
-
-You should see (venv) prefix in your terminal.
-
-### Step 3: Install Dependencies
-
-bash
-# Install all required packages
-pip install -r requirements.txt
-
-
-*What gets installed:*
-- FastAPI & Uvicorn - Web framework and server
-- SQLAlchemy - ORM for database
-- psycopg2-binary - PostgreSQL adapter
-- Pydantic - Data validation
-- python-jose - JWT authentication
-- passlib & bcrypt - Password hashing
-- requests - HTTP client
-- elevenlabs - TTS API
-- google-generativeai - AI integration
-- Pillow - Image processing
-- python-dotenv - Environment variables
-- alembic - Database migrations
-
-### Step 4: Configure Environment Variables
-
-bash
-# Copy the example environment file
-cp .env.example .env
-
-# Edit .env with your settings (see Configuration section below)
-nano .env
-# or use your preferred editor
-
-
-### Step 5: Set Up Database
-
-bash
-# Initialize the database schema
-python app/database/init.py
-
-# Or if using migrations:
-alembic upgrade head
-
-
-### Step 6: Start the Backend
-
-bash
-# Run with auto-reload (development)
-python -m uvicorn app.main:app --reload
-
-# Or use the provided script
-bash start.sh
-
-# Or run on specific host/port
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-
-Server will be available at: *http://localhost:8000*
-
----
-
-## ⚙ Configuration
-
-### Environment Variables (.env file)
-
-Create a .env file in the backend root directory:
-
-bash
-# ============ DATABASE ============
-# PostgreSQL connection string
-# Format: postgresql://username:password@host:port/database
+```env
+# ========== DATABASE ==========
 DATABASE_URL=postgresql://user:password@localhost:5432/petri_db
 
-# ============ AUTHENTICATION ============
-# Secret key for JWT signing (generate a random string)
-# Example: openssl rand -hex 32
-SECRET_KEY=your-super-secret-key-change-this-in-production
-
-# JWT algorithm
+# ========== AUTHENTICATION ==========
+SECRET_KEY=your-secret-key-here  # Generate: openssl rand -hex 32
 ALGORITHM=HS256
-
-# Token expiration time in minutes
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-# ============ EXTERNAL SERVICES ============
-# Groq API for LLM (chat/personality)
-GROQ_API_KEY=your-groq-api-key-here
+# ========== AI SERVICES ==========
+GROQ_API_KEY=gsk_...              # Get from https://console.groq.com
+ELEVENLABS_API_KEY=sk_...         # Get from https://elevenlabs.io
 
-# ElevenLabs API for text-to-speech
-ELEVENLABS_API_KEY=your-elevenlabs-api-key-here
-
-# ============ MICROSERVICES ============
-# Card generation service (optional)
+# ========== OPTIONAL SERVICES ==========
 CARD_GENERATION_SERVICE_URL=http://localhost:8001
-
-# Health scoring service (optional)
 HEALTH_SCORING_SERVICE_URL=http://localhost:8002
-
+```
 
 ### Getting API Keys
 
-#### Groq API Key
+**Groq API** (Free tier: 14,400 requests/day)
 1. Visit https://console.groq.com
-2. Sign up for free account
-3. Create API key
-4. Copy and paste into .env as GROQ_API_KEY
+2. Sign up and create API key
+3. Copy to `GROQ_API_KEY`
 
-#### ElevenLabs API Key
+**ElevenLabs** (Free tier: 10,000 characters/month)
 1. Visit https://elevenlabs.io
-2. Sign up for free account
-3. Go to Settings → API Keys
-4. Copy and paste into .env as ELEVENLABS_API_KEY
-
-#### PostgreSQL Connection String
-
-postgresql://username:password@localhost:5432/database_name
-
-Example:
-postgresql://postgres:mypassword@localhost:5432/petri_db
-
+2. Sign up → Settings → API Keys
+3. Copy to `ELEVENLABS_API_KEY`
 
 ---
 
-## 🏃 Running the Backend
+## 🗄️ Database Setup
 
-### Development Mode (with auto-reload)
+### Option 1: Auto-Initialize (Recommended)
 
-bash
-# Terminal 1: Start the backend
-python -m uvicorn app.main:app --reload
-
-# Output should show:
-# INFO:     Uvicorn running on http://127.0.0.1:8000
-# INFO:     Application startup complete
-
-
-Access at: http://localhost:8000
-
-### Production Mode
-
-bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-
-
-### Using the Start Script
-
-bash
-bash start.sh
-
-
-### Check If Backend is Running
-
-bash
-curl http://localhost:8000/docs
-# Should open FastAPI interactive documentation
-
-
----
-
-## 🗄 Database Setup
-
-### Prerequisites
-- PostgreSQL installed and running
-- Database user created
-- Database created
-
-### Option 1: Using Database Init Script
-
-bash
-# Creates database schema automatically
+```bash
 python app/database/init.py
-
+```
 
 ### Option 2: Manual Setup
 
-bash
-# 1. Connect to PostgreSQL
+```bash
+# Connect to PostgreSQL
 psql -U postgres
 
-# 2. Create database
+# Create database and user
 CREATE DATABASE petri_db;
-
-# 3. Create user (if needed)
-CREATE USER petri_user WITH PASSWORD 'your_password';
-
-# 4. Grant privileges
+CREATE USER petri_user WITH PASSWORD 'yourpassword';
 GRANT ALL PRIVILEGES ON DATABASE petri_db TO petri_user;
 
-# 5. Exit PostgreSQL
-\q
-
-# 6. Run initialization
-python app/database/init.py
-
-
-### Option 3: Using Alembic Migrations
-
-bash
-# View migration status
-alembic current
-
-# Run pending migrations
+# Run migrations
 alembic upgrade head
-
-# Create new migration
-alembic revision --autogenerate -m "migration message"
-
-# Rollback one migration
-alembic downgrade -1
-
-
-### Verify Database Connection
-
-python
-# Test connection with Python
-python << 'EOF'
-from app.database.db import SessionLocal
-try:
-    db = SessionLocal()
-    print("✓ Database connection successful!")
-    db.close()
-except Exception as e:
-    print(f"✗ Database connection failed: {e}")
-EOF
-
+```
 
 ---
 
 ## 📁 Project Structure
 
-
+```
 backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py                      # Application entry point
-│   ├── config.py                    # Configuration & settings
-│   ├── auth.py                      # JWT authentication
+│   ├── main.py              # FastAPI app entry point
+│   ├── config.py            # Configuration settings
+│   ├── auth.py              # JWT authentication
 │   │
 │   ├── database/
-│   │   ├── __init__.py
-│   │   ├── db.py                    # Database connection
-│   │   └── init.py                  # Database initialization
+│   │   ├── db.py            # Database connection
+│   │   └── init.py          # Schema initialization
 │   │
-│   ├── models/                      # SQLAlchemy ORM models
-│   │   ├── __init__.py
-│   │   ├── User                     # User model
-│   │   ├── Tree                     # Tree model
-│   │   ├── TreePersonality          # AI personality
-│   │   ├── ChatMessage              # Chat history
-│   │   └── ...
+│   ├── models/              # SQLAlchemy ORM models
+│   │   ├── User.py
+│   │   ├── Tree.py
+│   │   ├── TreePersonality.py
+│   │   └── ChatMessage.py
 │   │
-│   ├── schemas/                     # Pydantic schemas (request/response)
-│   │   ├── __init__.py
-│   │   └── (various schemas)
+│   ├── schemas/             # Pydantic request/response schemas
 │   │
-│   ├── services/                    # Business logic & integrations
-│   │   ├── __init__.py
-│   │   ├── ai_service.py            # Groq LLM + ElevenLabs TTS
-│   │   ├── business_logic.py        # Core business logic
-│   │   ├── external_services.py     # External API calls
-│   │   ├── nft_service.py           # NFT generation
-│   │   └── voice_service.py         # Voice transcription
+│   ├── services/            # Business logic
+│   │   ├── ai_service.py    # Groq LLM + ElevenLabs TTS
+│   │   ├── business_logic.py
+│   │   ├── nft_service.py
+│   │   └── voice_service.py
 │   │
-│   └── routes/                      # API endpoints
-│       ├── __init__.py
-│       ├── auth.py                  # Auth endpoints
-│       ├── trees.py                 # Tree endpoints (main)
-│       ├── portfolio.py             # Portfolio endpoints
-│       ├── trades.py                # Trading endpoints
-│       └── tokens.py                # Token endpoints
+│   └── routes/              # API endpoints
+│       ├── auth.py          # /api/auth/*
+│       ├── trees.py         # /api/trees/*
+│       ├── portfolio.py
+│       ├── trades.py
+│       └── tokens.py
 │
-├── migrations/                      # Alembic database migrations
-│
-├── static/
-│   └── audio/                       # Generated audio files
-│
-├── .env.example                     # Example environment variables
-├── .env                             # Your configuration (not committed)
-├── requirements.txt                 # Python dependencies
-├── start.sh                         # Start script
-├── README.md                        # Original README
-└── BACKEND_README.md                # This file
-
+├── static/audio/            # Generated audio files
+├── migrations/              # Alembic migrations
+├── requirements.txt
+├── .env.example
+└── README.md
+```
 
 ---
 
-## ⭐ Key Features
+## 🔌 API Endpoints
 
-### 1. Tree Management
+### Authentication
+```
+POST   /api/auth/register     # Create account
+POST   /api/auth/login        # Get JWT token
+POST   /api/auth/refresh      # Refresh token
+```
 
-GET    /api/trees              # List user's trees
-POST   /api/trees              # Plant new tree
-GET    /api/trees/{id}         # Get tree details
-PUT    /api/trees/{id}         # Update tree
-DELETE /api/trees/{id}         # Delete tree
+### Trees
+```
+GET    /api/trees             # List user's trees
+POST   /api/trees             # Plant new tree
+GET    /api/trees/{id}        # Get tree details
+PUT    /api/trees/{id}        # Update tree
+DELETE /api/trees/{id}        # Delete tree
+POST   /api/trees/{id}/water  # Log watering action
+```
 
+### AI & Chat
+```
+GET    /api/trees/{id}/personality        # Get AI personality
+POST   /api/trees/{id}/personality        # Set personality tone
+POST   /api/trees/{id}/chat               # Send message (text/audio)
+GET    /api/trees/{id}/chat-history       # Get conversation history
+```
 
-### 2. AI Chat & Personality
+### Voice Generation
+```
+GET    /api/voices            # List available voices
+POST   /api/trees/{id}/chat?include_audio=true  # Get audio response
+```
 
-GET    /api/trees/{id}/personality        # Get personality
-POST   /api/trees/{id}/personality        # Set personality
-POST   /api/trees/{id}/chat               # Chat with tree
-GET    /api/trees/{id}/chat-history       # Get chat history
-
-
-### 3. Voice Generation
-
-GET    /api/voices             # Get available voices
-POST   /api/trees/{id}/chat    # Chat with audio (include_audio=true)
-
-
-### 4. Authentication
-
-POST   /api/auth/login         # Login
-POST   /api/auth/register      # Register
-POST   /api/auth/refresh       # Refresh token
-
-
-### 5. NFT & Trading
-
-POST   /api/trees/{id}/nft     # Generate NFT
-POST   /api/trees/{id}/sell    # List for sale
-GET    /api/trades             # Get market listings
-POST   /api/trades/{id}/buy    # Purchase tree
-
-
----
-
-## 📚 API Documentation
-
-### Interactive Docs (Swagger UI)
-Available at: *http://localhost:8000/docs*
-
-Features:
-- Try API endpoints directly
-- See request/response examples
-- View schema definitions
-- Test authentication
-
-### Alternative Docs (ReDoc)
-Available at: *http://localhost:8000/redoc*
-
-### OpenAPI Schema
-Available at: *http://localhost:8000/openapi.json*
+### NFT & Trading
+```
+POST   /api/trees/{id}/nft    # Generate NFT metadata
+POST   /api/trees/{id}/sell   # List for sale
+GET    /api/trades            # Browse marketplace
+POST   /api/trades/{id}/buy   # Purchase tree
+```
 
 ---
 
-## 🔧 Common Tasks
+## 📚 Interactive Documentation
 
-### Adding a New Tree Route
+FastAPI automatically generates interactive API docs:
 
-1. Create endpoint in app/routes/trees.py:
-python
-@router.post("/{tree_id}/my-feature")
-def my_feature(tree_id: int, db: Session = Depends(get_db)):
-    # Your code here
-    pass
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
 
+---
 
-2. The route is automatically included via app.include_router()
+## 🤖 AI Personality System
 
-### Adding a New Database Model
+### How It Works
 
-1. Create model in app/models/:
-python
-class MyModel(Base):
-    __tablename__ = "my_models"
-    id = Column(Integer, primary_key=True)
-    # ... other fields
+1. **Personality Setup**: User selects tone (wise, humorous, poetic, etc.)
+2. **Context Building**: System gathers tree health, weather, care history
+3. **LLM Generation**: Groq API generates personality-driven response
+4. **Voice Synthesis**: ElevenLabs converts text to audio
+5. **Audio Delivery**: MP3 file returned to frontend
 
+### Setup Tones/Personality
+Some defaults are shared below.
+| Tone | Voice | Personality |
+|------|-------|-------------|
+| **Wise** | Rachel | Calm, philosophical mentor |
+| **Humorous** | Bella | Witty, sarcastic friend |
+| **Poetic** | Ember | Lyrical, nature-inspired |
 
-2. Import in app/models/__init__.py
+### Example Chat Flow
 
-3. Run migration:
-bash
-alembic revision --autogenerate -m "Add MyModel"
+```json
+// Request
+POST /api/trees/123/chat
+{
+  "message": "How are you feeling today?",
+  "include_audio": true
+}
+
+// Response
+{
+  "response": "My NDVI is looking strong at 0.75! Those clouds finally delivered, and I'm soaking it up. Keep this up and we'll hit Silver Badge by next week! 🌱",
+  "audio_url": "/static/audio/chat_123_1699999999.mp3",
+  "health_data": {
+    "ndvi": 0.75,
+    "health_score": 82
+  }
+}
+```
+
+---
+
+## 🧪 Development
+
+### Running Tests
+
+```bash
+# Install test dependencies
+pip install pytest pytest-asyncio httpx
+
+# Run tests
+pytest
+
+# With coverage
+pytest --cov=app --cov-report=html
+```
+
+### Database Migrations
+
+```bash
+# Create migration
+alembic revision --autogenerate -m "description"
+
+# Apply migrations
 alembic upgrade head
 
-
-### Calling External APIs
-
-Use the services in app/services/:
-- ai_service.py - Groq LLM & ElevenLabs
-- external_services.py - Other APIs
-- nft_service.py - NFT generation
+# Rollback
+alembic downgrade -1
+```
 
 ---
 
-## 🐛 Troubleshooting
+## 🐳 Docker Deployment
 
-### Issue: "Connection refused" (Port 8000)
-
-*Solution:*
-bash
-# Check if port is in use
-lsof -i :8000
-
-# Kill process using port
-kill -9 <PID>
-
-# Run on different port
-python -m uvicorn app.main:app --port 8001
-
-
-### Issue: "Database connection failed"
-
-*Solution:*
-bash
-# Check DATABASE_URL in .env
-echo $DATABASE_URL
-
-# Verify PostgreSQL is running
-pg_isready -h localhost -p 5432
-
-# Test connection
-psql -U postgres -d petri_db -c "SELECT 1"
-
-
-### Issue: "ModuleNotFoundError"
-
-*Solution:*
-bash
-# Ensure virtual environment is activated
-source venv/bin/activate  # macOS/Linux
-venv\Scripts\activate      # Windows
-
-# Reinstall dependencies
-pip install -r requirements.txt
-
-
-### Issue: "Groq API key invalid"
-
-*Solution:*
-bash
-# Check GROQ_API_KEY in .env
-cat .env | grep GROQ
-
-# Get new key from https://console.groq.com
-# Update .env and restart backend
-
-
-### Issue: "ElevenLabs audio not generating"
-
-*Solution:*
-bash
-# Check ELEVENLABS_API_KEY in .env
-cat .env | grep ELEVENLABS
-
-# Verify voice IDs are valid (Rachel, Bella, Ember)
-# Check backend logs for errors
-
-
-### Issue: Virtual environment not working
-
-*Solution:*
-bash
-# Deactivate and recreate
-deactivate
-rm -rf venv
-
-# Create fresh
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-
----
-
-## 📊 Health Checks
-
-### Verify Backend is Running
-
-bash
-# Basic check
-curl http://localhost:8000/
-
-# Check documentation
-curl http://localhost:8000/docs
-
-# Test database
-python app/database/init.py
-
-
-### View Logs
-
-bash
-# Live logs (if running with --reload)
-# Check terminal where uvicorn started
-
-# Or check log files
-tail -f uvicorn.log
-tail -f output.log
-
-
----
-
-## 🔒 Security Best Practices
-
-1. *Environment Variables*
-   - Never commit .env file
-   - Change SECRET_KEY in production
-   - Use strong API keys
-
-2. *Database*
-   - Use strong passwords
-   - Enable PostgreSQL authentication
-   - Restrict database access
-
-3. *JWT Tokens*
-   - Set reasonable expiration times
-   - Refresh tokens regularly
-   - Store securely on client
-
-4. *API Security*
-   - Validate all inputs with Pydantic
-   - Use HTTPS in production
-   - Implement rate limiting
-   - Add CORS configuration
-
----
-
-## 📈 Performance Tips
-
-1. *Database Optimization*
-   - Use indexes on frequently queried columns
-   - Batch database operations
-   - Use connection pooling
-
-2. *Caching*
-   - Cache personality data
-   - Cache voice options
-   - Cache frequently accessed trees
-
-3. *Async Operations*
-   - Offload long operations (audio generation)
-   - Use background tasks for processing
-   - Implement job queues
-
-4. *Monitoring*
-   - Log important events
-   - Track API response times
-   - Monitor database connections
-
----
-
-## 🚢 Deployment
-
-### Local Development
-bash
-python -m uvicorn app.main:app --reload
-
-
-### Production on Linux
-bash
-# Create systemd service
-sudo nano /etc/systemd/system/petri-backend.service
-
-# Start service
-sudo systemctl start petri-backend
-sudo systemctl enable petri-backend
-
-# View logs
-sudo journalctl -u petri-backend -f
-
-
-### Docker Deployment
-bash
+```bash
 # Build image
 docker build -t petri-backend .
 
 # Run container
 docker run -p 8000:8000 --env-file .env petri-backend
 
+# Or use docker-compose
+docker-compose up -d
+```
 
 ---
 
-## 📞 Support & Documentation
+## 🔒 Security Features
 
-- *API Docs*: http://localhost:8000/docs
-- *Issues*: Check backend logs for errors
-- *Environment Setup*: See .env.example
-- *Database*: Check SETUP_DATABASE.md
+- ✅ JWT authentication with token expiration
+- ✅ Password hashing with bcrypt
+- ✅ Pydantic validation for all inputs
+- ✅ SQL injection prevention via SQLAlchemy ORM
+- ✅ CORS configuration for frontend integration
+- ✅ Environment variable protection
+- ✅ Rate limiting ready (implement in production)
 
 ---
 
-## 📝 Summary
+## 🐛 Troubleshooting
 
-*Quick Start:*
-bash
-# 1. Setup environment
-python3 -m venv venv
-source venv/bin/activate
+### Database Connection Issues
 
-# 2. Install dependencies
-pip install -r requirements.txt
+```bash
+# Test connection
+psql -U postgres -d petri_db -c "SELECT 1"
 
-# 3. Configure
-cp .env.example .env
-# Edit .env with your settings
+# Check .env
+cat .env | grep DATABASE_URL
 
-# 4. Initialize database
+# Reinitialize
 python app/database/init.py
+```
+---
 
-# 5. Run backend
-python -m uvicorn app.main:app --reload
+## 🚧 Roadmap
+
+- [ ] WebSocket support for real-time updates
+- [ ] Celery task queue for async processing
+- [ ] Redis caching layer
+- [ ] Prometheus metrics endpoint
+- [ ] GraphQL API option
+- [ ] Rate limiting middleware
+- [ ] Admin dashboard
+- [ ] Automated testing suite
 
 
-*Access:*
-- API: http://localhost:8000
-- Docs: http://localhost:8000/docs
+## 📄 License
 
-*Status: ✅ READY TO USE*
+MIT License - see [LICENSE](LICENSE) file
 
 ---
 
-*Last Updated*: 2025-11-09
-*Version*: 1.0 Complete
-*Status*: Production Ready
+## 🌟 Team ISTARI
+
+**Built by:**
+- Muhammad Masab Hammad
+- Asim Iqbal
+- Muhammad Zeeshan Naveed
+- Mahad Rehman Durrani
+
+---
+
+## 📞 Support
+
+- **API Docs**: http://localhost:8000/docs
+- **Issues**: [GitHub Issues](https://github.com/Xeeshan85/petri-backend/issues)
+- **Email**: i220615@nu.edu.pk
+
+---
+
+<p align="center">
+  <strong>🌲 Powering the future of environmental stewardship 🌍</strong>
+</p>
